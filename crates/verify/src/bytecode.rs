@@ -18,7 +18,7 @@ use foundry_config::{figment, filter::SkipBuildFilter, impl_figment_convert, Cha
 use foundry_evm::{
     constants::DEFAULT_CREATE2_DEPLOYER, executors::TracingExecutor, utils::configure_tx_env,
 };
-use revm_primitives::{db::Database, EnvWithHandlerCfg, HandlerCfg, SpecId};
+use revm_primitives::{db::Database, keccak256, EnvWithHandlerCfg, HandlerCfg, SpecId};
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use std::{fmt, path::PathBuf, str::FromStr};
@@ -254,6 +254,15 @@ impl VerifyBytecodeArgs {
                 self.address
             );
         };
+
+        // Ensure the contract address is expected if using the CREATE2 deployer
+        if transaction.to == Some(DEFAULT_CREATE2_DEPLOYER) {
+            let salt: [u8; 32] = transaction.input[..32].try_into()?;
+            let init_code_hash = keccak256(maybe_creation_code);
+            if DEFAULT_CREATE2_DEPLOYER.create2(salt, init_code_hash) != self.address {
+                eyre::bail!("Contract address does not match the expected address");
+            }
+        }
 
         // If bytecode_hash is disabled then its always partial verification
         let (verification_type, has_metadata) =
