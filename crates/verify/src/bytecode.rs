@@ -185,7 +185,7 @@ impl VerifyBytecodeArgs {
         }
 
         // print constructor args if print_args is true and constructor_args is not empty
-        if let (true, false) = (self.print_args, constructor_args.is_empty()) {
+        if self.print_args && !constructor_args.is_empty() {
             let constructor_abi = etherscan.contract_abi(self.address).await?;
 
             match constructor_abi.constructor {
