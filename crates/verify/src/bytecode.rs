@@ -8,7 +8,7 @@ use foundry_cli::{
     opts::EtherscanOpts,
     utils::{self, read_constructor_args_file, LoadConfig},
 };
-use foundry_common::{compile::ProjectCompiler, provider::ProviderBuilder};
+use foundry_common::{compile::ProjectCompiler, fmt::format_tokens, provider::ProviderBuilder};
 use foundry_compilers::{
     artifacts::{BytecodeHash, BytecodeObject, CompactContractBytecode, EvmVersion},
     info::ContractInfo,
@@ -51,6 +51,14 @@ pub struct VerifyBytecodeArgs {
     /// The path to a file containing the constructor arguments.
     #[clap(long, value_hint = ValueHint::FilePath, value_name = "PATH")]
     pub constructor_args_path: Option<PathBuf>,
+
+    /// Print the constructor args in the output.
+    #[clap(long, default_value = "false")]
+    pub print_args: bool,
+
+    /// Skip runtime bytecode verification.
+    #[clap(long, default_value = "false")]
+    pub skip_runtime: bool,
 
     /// The rpc url to use for verification.
     #[clap(short = 'r', long, value_name = "RPC_URL", env = "ETH_RPC_URL")]
@@ -176,6 +184,42 @@ impl VerifyBytecodeArgs {
             );
         }
 
+        // print constructor args if print_args is true and constructor_args is not empty
+        if let (true, false) = (self.print_args, constructor_args.is_empty()) {
+            let constructor_abi = etherscan.contract_abi(self.address).await?;
+
+            match constructor_abi.constructor {
+                Some(constructor_abi) => {
+                    let hex_encoded = constructor_args.to_string();
+
+                    let constructor_inputs = {
+                        let inputs = constructor_abi.inputs.iter()
+                            .map(|x| format!("{} {}", &x.ty, &x.name))
+                            .collect::<Vec<_>>()
+                            .join(", ");
+                        format!("constructor({})", inputs)
+                    };
+
+                    let decoded_args = foundry_common::abi::abi_decode_calldata(
+                        constructor_inputs.as_str(),
+                        hex_encoded.as_str(),
+                        true,
+                        false,
+                    )?;
+                    
+                    let tokens = format_tokens(&decoded_args);
+
+                    println!("{}", constructor_inputs);
+                    for (input, token) in constructor_abi.inputs.iter().zip(tokens) {
+                        println!("{} {}:\n\t{}", input.ty, input.name, token);
+                    }
+                },
+                None => {
+                    eyre::bail!("No constructor ABI found for contract at address {}", self.address);
+                }
+            }
+        }
+
         // Get creation tx hash
         let creation_data = etherscan.contract_creation_data(self.address).await?;
 
@@ -256,6 +300,13 @@ impl VerifyBytecodeArgs {
             etherscan_metadata,
             &config,
         );
+
+        if self.skip_runtime {
+            if self.json {
+                println!("{}", serde_json::to_string(&json_results)?);
+            }
+            return Ok(());
+        }
 
         // Get contract creation block
         let simulation_block = match self.block {
