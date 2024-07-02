@@ -27,6 +27,9 @@ use std::{
 
 static CURRENT_DIR_LOCK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
 
+/// The commit of forge-std to use.
+const FORGE_STD_REVISION: &str = include_str!("../../../testdata/forge-std-rev");
+
 /// Stores whether `stdout` is a tty / terminal.
 pub static IS_TTY: Lazy<bool> = Lazy::new(|| std::io::stdout().is_terminal());
 
@@ -192,7 +195,7 @@ impl ExtTester {
         // Run the tests.
         test_cmd.arg("test");
         test_cmd.args(&self.args);
-        test_cmd.args(["--fuzz-runs=32", "--ffi", "-vvvvv"]);
+        test_cmd.args(["--fuzz-runs=32", "--ffi", "-vvv"]);
 
         test_cmd.envs(self.envs.iter().map(|(k, v)| (k, v)));
         if let Some(fork_block) = self.fork_block {
@@ -250,6 +253,14 @@ pub fn initialize(target: &Path) {
             eprintln!("- initializing template dir in {}", prj.root().display());
 
             cmd.args(["init", "--force"]).assert_success();
+            // checkout forge-std
+            assert!(Command::new("git")
+                .current_dir(prj.root().join("lib/forge-std"))
+                .args(["checkout", FORGE_STD_REVISION])
+                .output()
+                .expect("failed to checkout forge-std")
+                .status
+                .success());
             cmd.forge_fuse().args(["build", "--use", SOLC_VERSION]).assert_success();
 
             // Remove the existing template, if any.

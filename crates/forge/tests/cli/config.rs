@@ -64,6 +64,7 @@ forgetest!(can_extract_config_values, |prj, cmd| {
         contract_pattern_inverse: None,
         path_pattern: None,
         path_pattern_inverse: None,
+        coverage_pattern_inverse: None,
         fuzz: FuzzConfig {
             runs: 1000,
             max_test_rejects: 100203,
@@ -139,6 +140,7 @@ forgetest!(can_extract_config_values, |prj, cmd| {
         skip: vec![],
         dependencies: Default::default(),
         warnings: vec![],
+        assertions_revert: true,
         legacy_assertions: false,
         _non_exhaustive: (),
     };

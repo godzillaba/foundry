@@ -1,6 +1,6 @@
 //! Support for forking off another client
 
-use crate::eth::{backend::db::Db, error::BlockchainError};
+use crate::eth::{backend::db::Db, error::BlockchainError, pool::transactions::PoolTransaction};
 use alloy_primitives::{Address, Bytes, StorageValue, B256, U256};
 use alloy_provider::{
     ext::{DebugApi, TraceApi},
@@ -116,6 +116,11 @@ impl ClientFork {
 
     pub fn block_number(&self) -> u64 {
         self.config.read().block_number
+    }
+
+    /// Returns the transaction hash we forked off of, if any.
+    pub fn transaction_hash(&self) -> Option<B256> {
+        self.config.read().transaction_hash
     }
 
     pub fn total_difficulty(&self) -> U256 {
@@ -579,6 +584,8 @@ pub struct ClientForkConfig {
     pub block_number: u64,
     /// The hash of the forked block
     pub block_hash: B256,
+    /// The transaction hash we forked off of, if any.
+    pub transaction_hash: Option<B256>,
     // TODO make provider agnostic
     pub provider: Arc<RetryProvider>,
     pub chain_id: u64,
@@ -601,6 +608,8 @@ pub struct ClientForkConfig {
     pub compute_units_per_second: u64,
     /// total difficulty of the chain until this block
     pub total_difficulty: U256,
+    /// Transactions to force include in the forked chain
+    pub force_transactions: Option<Vec<PoolTransaction>>,
 }
 
 impl ClientForkConfig {
